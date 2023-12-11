@@ -3,73 +3,102 @@ from helpers import load_input_lines
 
 TEST = os.environ.get("AOC_TEST", False)
 
-
-def expand_vertically(lines):
+def mark_vertical_expansion(lines):
     """
     >>> l = ["...#", "....", "#..."]
-    >>> list(expand_vertically(l))
-    ['...#', '....', '....', '#...']
+    >>> list(mark_vertical_expansion(l))
+    ['...#', 'vvvv', '#...']
     """
+    lines = list(lines)
+    width = len(lines[0])
     for line in lines:
+        if "#" not in line:
+            line = line.replace(">", "x").replace(".", "v")
         yield line
-        if set(line) == {"."}:
-            yield line
 
 
 def columns(lines):
     """
     >>> l = ["...#", "....", "#..."]
-    >>> ["".join(c) for c in list(columns(l))]
+    >>> list(columns(l))
     ['..#', '...', '...', '#..']
     """
     lines = list(lines)
     width = len(lines[0])
     for i in range(width):
-        yield [line[i] for line in lines]
+        yield "".join(line[i] for line in lines)
 
 
-def expand_horizontally(lines):
+def mark_horizontal_expansion(lines):
     """
     >>> l = ["...#", "....", "#..."]
-    >>> list(expand_horizontally(l))
-    ['.....#', '......', '#.....']
+    >>> list(mark_horizontal_expansion(l))
+    ['.>>#', '.>>.', '#>>.']
     """
-    expanded_columns = []
+    lines = list(lines)
+    marked_columns = []
     for column in columns(lines):
-        expanded_columns.append(column)
-        if set(column) == {"."}:
-            expanded_columns.append(column)
+        if "#" not in column:
+            column = column.replace("v", "x").replace(".", ">")
+        marked_columns.append(column)
 
-    height = len(expanded_columns[0])
+    height = len(lines)
     for i in range(height):
-        yield "".join(column[i] for column in expanded_columns)
+        yield "".join(column[i] for column in marked_columns)
 
 
-def find_galaxy_x_coordinates(lines):
+def find_x_coordinates(line, expand_by=1):
     """
-    >>> list(find_galaxy_x_coordinates(["#....#.......", ".#..........."]))
-    [[0, 5], [1]]
+    >>> list(find_x_coordinates("#....#......."))
+    [0, 5]
+    >>> list(find_x_coordinates("#.>..#......."))
+    [0, 6]
+    >>> list(find_x_coordinates("#.>v.#.......", expand_by=5))
+    [0, 10]
+    >>> list(find_x_coordinates("#.>vx#...v...", expand_by=5))
+    [0, 15]
     """
-    for line in lines:
-        yield [x for x, galaxy in enumerate(line) if galaxy == "#"]
+    x_index = 0
+    for character in line:
+        if character == "#":
+            yield x_index
+        elif character in ">x":
+            x_index += expand_by
+        x_index += 1
 
 
-def append_galaxy_y_coordinates(x_coords_by_line):
+def get_coordinates(lines, expand_by=1):
     """
-    >>> list(append_galaxy_y_coordinates([[9], [0, 4]]))
-    [(9, 0), (0, 1), (4, 1)]
+    >>> l = ["...#", "....", "#..."]
+    >>> list(get_coordinates(l))
+    [(3, 0), (0, 2)]
+    >>> l = [".>.#", ".>..", "#>.."]
+    >>> list(get_coordinates(l))
+    [(4, 0), (0, 2)]
+    >>> l = [".>.#", "vxvv", "#>.."]
+    >>> list(get_coordinates(l))
+    [(4, 0), (0, 3)]
+    >>> list(get_coordinates(l, expand_by=2))
+    [(5, 0), (0, 4)]
     """
-    for y, line in enumerate(x_coords_by_line):
-        for x in line:
-            yield (x, y)
+    line_number = 0
+    lines = list(lines)
+    all_x_coords = [find_x_coordinates(line, expand_by=expand_by) for line in lines]
+
+    for line, x_coords in zip(lines, all_x_coords):
+        if line[0] in "vx":
+            line_number += expand_by
+        else:
+            for x in x_coords:
+                yield (x, line_number)
+        line_number += 1
 
 
-def load_galaxies():
+def load_galaxies(expand_by=1):
     raw_map_lines = load_input_lines(11, test=TEST)
-    map_expanded_vertically = expand_vertically(raw_map_lines)
-    map_expanded = expand_horizontally(map_expanded_vertically)
-    x_coordinates = find_galaxy_x_coordinates(map_expanded)
-    galaxy_coordinates = append_galaxy_y_coordinates(x_coordinates)
+    map_marked_vertically = mark_vertical_expansion(raw_map_lines)
+    map_marked = mark_horizontal_expansion(map_marked_vertically)
+    galaxy_coordinates = get_coordinates(map_marked, expand_by=expand_by)
     return list(galaxy_coordinates)
 
 
@@ -103,7 +132,10 @@ def solve_a():
 
 
 def solve_b():
-    pass
+    total_distance = 0
+    galaxies = load_galaxies(expand_by=999999)
+    pairs = unique_pairs(galaxies)
+    return sum(distance(*pair) for pair in pairs)
 
 
 if __name__ == "__main__":
